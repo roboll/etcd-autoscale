@@ -9,7 +9,7 @@ IMAGE_TAG := $(OWNER)/$(REPO):$(VERSION)
 VERSION   := $(shell git describe --tags)
 
 all: $(PRE_RELEASE)
-release: $(PRE_RELEASE) perform-binary-release perform-docker-release
+release: $(PRE_RELEASE) perform-binary-release
 
 ###############################################################################
 # pre-release - test and validation steps
@@ -72,17 +72,17 @@ endif
 ###############################################################################
 # docker-release - push a docker image release
 ###############################################################################
-build-docker-release: Dockerfile build-binary-release
+build-docker-release: build-binary-release
 	docker build -t $(IMAGE_TAG) .
 
-perform-docker-release: Dockerfile tag clean build-docker-release
+perform-docker-release: tag clean build-docker-release
 	docker push $(IMAGE_TAG)
 
 ###############################################################################
 # utility
 ###############################################################################
 .PHONY: tag clean
-tag:   ; @git describe --tags --exact-match HEAD
+tag:  ; @git describe --tags --exact-match HEAD > /dev/null
 clean:
 	@git diff --exit-code > /dev/null
 	@git diff --cached --exit-code > /dev/null
