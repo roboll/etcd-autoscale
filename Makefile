@@ -1,12 +1,15 @@
 ###############################################################################
-# make tasks for building and uploading release artifacts to github releases
+# release tasks for binary and docker releases
 ###############################################################################
-all: $(PRE_RELEASE)
+OWNER     := roboll
+REPO      := etcd-autoscale-members
 
-OWNER   := roboll
-REPO    := etcd-autoscale-members
-PROJECT := github.com/$(OWNER)/$(REPO)
-VERSION := $(shell git describe --tags)
+PROJECT   := github.com/$(OWNER)/$(REPO)
+IMAGE_TAG := $(OWNER)/$(REPO):$(VERSION)
+VERSION   := $(shell git describe --tags)
+
+all: $(PRE_RELEASE)
+release: $(PRE_RELEASE) perform-binary-release perform-docker-release
 
 ###############################################################################
 # pre-release - test and validation steps
@@ -17,14 +20,14 @@ PRE_RELEASE := test
 test: ; go test ./...
 
 ###############################################################################
-# build-release - build a release artifact
+# binary-release - build a binary release artifact
 ###############################################################################
 GOOS     := linux
 GOARCH   := amd64
 ARTIFACT := $(REPO)-$(GOOS)-$(GOARCH)-$(VERSION)
 
-.PHONY: build build-release
-build-release:
+.PHONY: build-binary-release
+build-binary-release:
 	docker run \
 		-v $(PWD):/go/src/$(PROJECT) -v $(PWD)/target:/target \
 		golang /bin/bash -c \
@@ -34,7 +37,7 @@ build-release:
 			-o /target/$(ARTIFACT) $(PROJECT)"
 
 ###############################################################################
-# perform-release - upload a release to github releases
+# github-release - upload a binary release to github releases
 #
 # requirements:
 # - the checked out revision be a pushed tag
@@ -43,24 +46,43 @@ build-release:
 API    = https://api.github.com/repos/$(OWNER)/$(REPO)
 UPLOAD = https://uploads.github.com/repos/$(OWNER)/$(REPO)
 
-.PHONY: tag github-token create-release perform-release
-tag: ; git describe --tags --exact-match HEAD
+.PHONY: create-gh-release perform-gh-release gh-token
+create-gh-release: tag clean gh-token
+	$(info Creating Github Release)
+	@curl -s -XPOST -H "Authorization: token $(GITHUB_TOKEN)" \
+		$(API)/releases -d '{ "tag_name": "$(VERSION)" }' > /dev/null
 
-github-token:
+perform-gh-release: tag clean gh-token build-binary-release create-gh-release
+	$(info Uploading Release Artifact to Github)
+	@curl -s \
+		-H "Authorization: token $(GITHUB_TOKEN)" \
+		$(API)/releases/tags/$(VERSION) |\
+	python -c "import json,sys;obj=json.load(sys.stdin);print obj['id']" |\
+	curl -s -XPOST \
+		-H "Authorization: token $(GITHUB_TOKEN)" \
+		-H "Content-Type: application/octet-stream" \
+		$(UPLOAD)/releases/$$(xargs )/assets?name=$(ARTIFACT) \
+		--data-binary @target/$(ARTIFACT) > /dev/null
+
+gh-token:
 ifndef GITHUB_TOKEN
 	$(error $GITHUB_TOKEN not set)
 endif
 
-create-release: tag github-token
-	curl -s -XPOST -H "Authorization: token $(GITHUB_TOKEN)" \
-		$(API)/releases -d '{ "tag_name": "$(VERSION)" }'
+###############################################################################
+# docker-release - push a docker image release
+###############################################################################
+build-docker-release: Dockerfile build-binary-release
+	docker build -t $(IMAGE_TAG) .
 
-perform-release: tag github-token $(PRE_RELEASE) build-release create-release
-	curl -s -H "Authorization: token $(GITHUB_TOKEN)" \
-		$(API)/releases/tags/$(VERSION) | \
-	python -c "import json,sys;obj=json.load(sys.stdin);print obj['id']" | \
-		curl -s -XPOST \
-			-H "Authorization: token $(GITHUB_TOKEN)" \
-			-H "Content-Type: application/octet-stream" \
-			$(UPLOAD)/releases/$$(xargs )/assets?name=$(ARTIFACT) \
-			--data-binary @target/$(ARTIFACT)
+perform-docker-release: Dockerfile tag clean build-docker-release
+	docker push $(IMAGE_TAG)
+
+###############################################################################
+# utility
+###############################################################################
+.PHONY: tag clean
+tag:   ; @git describe --tags --exact-match HEAD
+clean:
+	@git diff --exit-code > /dev/null
+	@git diff --cached --exit-code > /dev/null
