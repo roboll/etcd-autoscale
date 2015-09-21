@@ -8,19 +8,18 @@ import (
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 var groupName string
 var outputFile string
-var region string
 var usePublicIP bool
 
 func init() {
 	flag.StringVar(&groupName, "group", "", "autoscaling group name")
 	flag.StringVar(&outputFile, "output-file", "/etc/sysconfig/etcd-members", "output file: default /etc/sysconfig/etcd-members")
-	flag.StringVar(&region, "aws-region", "", "aws region")
 	flag.BoolVar(&usePublicIP, "use-public-ip", false, "use public ip: default false")
 }
 
@@ -33,9 +32,14 @@ func main() {
 		log.Fatal("Output file is required.")
 	}
 
-	config := &aws.Config{}
-	if region != "" {
-		config.Region = &region
+	metadata := ec2metadata.New(&ec2metadata.Config{})
+	region, err := metadata.Region()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	config := &aws.Config{
+		Region: &region
 	}
 
 	autoscale := autoscaling.New(config)

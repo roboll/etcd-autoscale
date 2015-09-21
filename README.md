@@ -12,7 +12,6 @@ Grab a github download, or build it yourself. There are some options.
 
     -group         - the autoscaling group name (required)
     -output-file   - the output file (defaults to /etc/sysconfig/etcd-members)
-    -region        - the aws region to use (uses aws-sdk-go default fallbacks)
     -use-public-ip - use instance public ip (defaults to private ip)
 
 The output file should contain a `source`-able or `EnvironmentFile`-able list of etcd members.
