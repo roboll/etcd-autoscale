@@ -9,7 +9,7 @@ IMAGE_TAG := $(OWNER)/$(REPO):$(VERSION)
 VERSION   := $(shell git describe --tags)
 
 all: $(PRE_RELEASE)
-release: $(PRE_RELEASE) perform-binary-release
+release: $(PRE_RELEASE) perform-gh-release
 
 ###############################################################################
 # pre-release - test and validation steps
