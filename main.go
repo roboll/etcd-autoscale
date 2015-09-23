@@ -39,7 +39,7 @@ func main() {
 	}
 
 	config := &aws.Config{
-		Region: &region
+		Region: &region,
 	}
 
 	autoscale := autoscaling.New(config)
