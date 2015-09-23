@@ -75,3 +75,12 @@ gh-token:
 ifndef GITHUB_TOKEN
 	$(error $GITHUB_TOKEN not set)
 endif
+
+###############################################################################
+# utility
+###############################################################################
+.PHONY: tag clean
+tag:  ; @git describe --tags --exact-match HEAD > /dev/null
+clean:
+	@git diff --exit-code > /dev/null
+	@git diff --cached --exit-code > /dev/null
