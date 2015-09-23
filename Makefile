@@ -8,8 +8,13 @@ PROJECT   := github.com/$(OWNER)/$(REPO)
 IMAGE_TAG := $(OWNER)/$(REPO):$(VERSION)
 VERSION   := $(shell git describe --tags)
 
-all: $(PRE_RELEASE)
-release: $(PRE_RELEASE) perform-gh-release
+GOOS     := linux
+GOARCH   := amd64
+BINARY   := $(REPO)-$(GOOS)-$(GOARCH)-$(VERSION)
+
+all: build
+build: target/$(BINARY)
+release: $(PRE_RELEASE) gh-release-$(BINARY)
 
 ###############################################################################
 # pre-release - test and validation steps
@@ -20,21 +25,23 @@ PRE_RELEASE := test
 test: ; go test ./...
 
 ###############################################################################
-# binary-release - build a binary release artifact
+# release artifacts
 ###############################################################################
-GOOS     := linux
-GOARCH   := amd64
-ARTIFACT := $(REPO)-$(GOOS)-$(GOARCH)-$(VERSION)
+target: ; mkdir -p target
 
-.PHONY: build-binary-release
-build-binary-release:
+target/$(BINARY): target
 	docker run \
 		-v $(PWD):/go/src/$(PROJECT) -v $(PWD)/target:/target \
 		golang /bin/bash -c \
 			"CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
 			go get $(PROJECT)/... && \
-			go build -a -tags netgo -ldflags '-s -w' \
-			-o /target/$(ARTIFACT) $(PROJECT)"
+			go build -a -tags netgo \
+			-ldflags '-s -w -X main.release=$(VERSION)' \
+			-o /target/$(BINARY) $(PROJECT)"
+
+target/%.tar.gz: target %
+	@echo Packaging $* to target/$*.tar.gz.
+	@tar czf target/$*.tar.gz -C $* .
 
 ###############################################################################
 # github-release - upload a binary release to github releases
@@ -46,14 +53,14 @@ build-binary-release:
 API    = https://api.github.com/repos/$(OWNER)/$(REPO)
 UPLOAD = https://uploads.github.com/repos/$(OWNER)/$(REPO)
 
-.PHONY: create-gh-release perform-gh-release gh-token
+.PHONY: create-gh-release gh-release gh-token
 create-gh-release: tag clean gh-token
 	$(info Creating Github Release)
 	@curl -s -XPOST -H "Authorization: token $(GITHUB_TOKEN)" \
 		$(API)/releases -d '{ "tag_name": "$(VERSION)" }' > /dev/null
 
-perform-gh-release: tag clean gh-token build-binary-release create-gh-release
-	$(info Uploading Release Artifact to Github)
+gh-release-%: tag clean gh-token target/% create-gh-release
+	$(info Uploading Release Artifact $* to Github)
 	@curl -s \
 		-H "Authorization: token $(GITHUB_TOKEN)" \
 		$(API)/releases/tags/$(VERSION) |\
@@ -61,28 +68,10 @@ perform-gh-release: tag clean gh-token build-binary-release create-gh-release
 	curl -s -XPOST \
 		-H "Authorization: token $(GITHUB_TOKEN)" \
 		-H "Content-Type: application/octet-stream" \
-		$(UPLOAD)/releases/$$(xargs )/assets?name=$(ARTIFACT) \
-		--data-binary @target/$(ARTIFACT) > /dev/null
+		$(UPLOAD)/releases/$$(xargs )/assets?name=$* \
+		--data-binary @target/$* > /dev/null
 
 gh-token:
 ifndef GITHUB_TOKEN
 	$(error $GITHUB_TOKEN not set)
 endif
-
-###############################################################################
-# docker-release - push a docker image release
-###############################################################################
-build-docker-release: build-binary-release
-	docker build -t $(IMAGE_TAG) .
-
-perform-docker-release: tag clean build-docker-release
-	docker push $(IMAGE_TAG)
-
-###############################################################################
-# utility
-###############################################################################
-.PHONY: tag clean
-tag:  ; @git describe --tags --exact-match HEAD > /dev/null
-clean:
-	@git diff --exit-code > /dev/null
-	@git diff --cached --exit-code > /dev/null
