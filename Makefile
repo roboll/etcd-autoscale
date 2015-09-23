@@ -2,7 +2,7 @@
 # release tasks for binary and docker releases
 ###############################################################################
 OWNER     := roboll
-REPO      := etcd-autoscale-members
+REPO      := etcd-autoscale
 
 PROJECT   := github.com/$(OWNER)/$(REPO)
 IMAGE_TAG := $(OWNER)/$(REPO):$(VERSION)
