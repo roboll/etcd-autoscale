@@ -30,7 +30,7 @@ test: ; go test ./...
 target: ; mkdir -p target
 
 target/$(BINARY): target
-	docker run \
+	docker run --rm \
 		-v $(PWD):/go/src/$(PROJECT) -v $(PWD)/target:/target \
 		golang /bin/bash -c \
 			"CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) \
