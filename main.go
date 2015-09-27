@@ -99,6 +99,7 @@ func main() {
 				output.WriteString(fmt.Sprintf("%s=%s://%s:%s", *instance.InstanceId, protocol, *ip, port))
 				hostname := "ip-" + strings.Replace(*ip, ".", "-", -1)
 				hostOut.WriteString(fmt.Sprintf("%s %s", *ip, hostname))
+				hostOut.WriteString("\n")
 			}
 		}
 
