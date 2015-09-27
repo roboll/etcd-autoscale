@@ -20,6 +20,7 @@ var protocol string
 var port string
 var usePublicIP bool
 var hosts bool
+var domain string
 
 func init() {
 	flag.StringVar(&region, "region", "", "aws region")
@@ -29,6 +30,7 @@ func init() {
 	flag.StringVar(&port, "port", "2379", "etcd port")
 	flag.BoolVar(&usePublicIP, "use-public-ip", false, "use public ip: default false")
 	flag.BoolVar(&hosts, "hosts", false, "write hosts config")
+	flag.StringVar(&domain, "domain", "", "domain to append to ip")
 }
 
 func main() {
@@ -96,9 +98,9 @@ func main() {
 				} else {
 					ip = instance.PrivateIpAddress
 				}
-				output.WriteString(fmt.Sprintf("%s=%s://%s:%s", *instance.InstanceId, protocol, *ip, port))
+				output.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s", *instance.InstanceId, protocol, *ip, domain, port))
 				hostname := "ip-" + strings.Replace(*ip, ".", "-", -1)
-				hostOut.WriteString(fmt.Sprintf("%s %s", *ip, hostname))
+				hostOut.WriteString(fmt.Sprintf("%s %s.%s", *ip, hostname, domain))
 				hostOut.WriteString("\n")
 			}
 		}
