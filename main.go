@@ -98,8 +98,8 @@ func main() {
 				} else {
 					ip = instance.PrivateIpAddress
 				}
-				output.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s", *instance.InstanceId, protocol, *ip, domain, port))
 				hostname := "ip-" + strings.Replace(*ip, ".", "-", -1)
+				output.WriteString(fmt.Sprintf("%s=%s://%s.%s:%s", *instance.InstanceId, protocol, hostname, domain, port))
 				hostOut.WriteString(fmt.Sprintf("%s %s.%s", *ip, hostname, domain))
 				hostOut.WriteString("\n")
 			}
