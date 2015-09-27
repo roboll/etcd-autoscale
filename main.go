@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
@@ -18,6 +19,7 @@ var outputFile string
 var protocol string
 var port string
 var usePublicIP bool
+var hosts bool
 
 func init() {
 	flag.StringVar(&region, "region", "", "aws region")
@@ -26,6 +28,7 @@ func init() {
 	flag.StringVar(&protocol, "protocol", "http", "protocol to prefix, without :// ip: default http")
 	flag.StringVar(&port, "port", "2379", "etcd port")
 	flag.BoolVar(&usePublicIP, "use-public-ip", false, "use public ip: default false")
+	flag.BoolVar(&hosts, "hosts", false, "write hosts config")
 }
 
 func main() {
@@ -79,6 +82,9 @@ func main() {
 
 		output := bytes.Buffer{}
 		output.WriteString("ETCD_INITIAL_CLUSTER=")
+
+		hostOut := bytes.Buffer{}
+
 		for residx, res := range instances.Reservations {
 			for idx, instance := range res.Instances {
 				if !(idx == 0 && residx == 0) {
@@ -91,24 +97,38 @@ func main() {
 					ip = instance.PrivateIpAddress
 				}
 				output.WriteString(fmt.Sprintf("%s=%s://%s:%s", *instance.InstanceId, protocol, *ip, port))
+				hostname := "ip-" + strings.Replace(*ip, ".", "-", -1)
+				hostOut.WriteString(fmt.Sprintf("%s %s", *ip, hostname))
 			}
 		}
 
-		if outputFile == "" {
-			output.WriteTo(os.Stdout)
+		if !hosts {
+			if outputFile == "" {
+				output.WriteTo(os.Stdout)
+			} else {
+				file, err := os.Create(outputFile)
+				if err != nil {
+					println(err.Error())
+					os.Exit(1)
+				}
+				output.WriteTo(file)
+				err = file.Close()
+				if err != nil {
+					println(err.Error())
+					os.Exit(1)
+				}
+			}
 		} else {
-			file, err := os.Create(outputFile)
-			if err != nil {
-				println(err.Error())
-				os.Exit(1)
-			}
-			output.WriteTo(file)
-			err = file.Close()
-			if err != nil {
-				println(err.Error())
-				os.Exit(1)
-			}
+
+			hostOut.WriteTo(os.Stdout)
 		}
+		/*
+			hosts, err := os.Create("/etc/hosts")
+			if err != nil {
+				println(err.Error())
+				os.Exit(1)
+			}
+		*/
 		os.Exit(0)
 	}
 }
