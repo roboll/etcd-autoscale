@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+var region string
 var groupName string
 var outputFile string
 var protocol string
@@ -19,9 +20,10 @@ var port string
 var usePublicIP bool
 
 func init() {
+	flag.StringVar(&region, "region", "", "aws region")
 	flag.StringVar(&groupName, "group", "", "autoscaling group name")
-	flag.StringVar(&outputFile, "output-file", "/etc/sysconfig/etcd-members", "output file: default /etc/sysconfig/etcd-members")
-	flag.StringVar(&protocol, "protocol", "https://", "protocol to prefix, without :// ip: default https")
+	flag.StringVar(&outputFile, "output-file", "", "output file: default /etc/sysconfig/etcd-members")
+	flag.StringVar(&protocol, "protocol", "http", "protocol to prefix, without :// ip: default http")
 	flag.StringVar(&port, "port", "2379", "etcd port")
 	flag.BoolVar(&usePublicIP, "use-public-ip", false, "use public ip: default false")
 }
@@ -32,16 +34,15 @@ func main() {
 		println("Group name is required.")
 		os.Exit(1)
 	}
-	if outputFile == "" {
-		println("Output file is required.")
-		os.Exit(1)
-	}
 
-	metadata := ec2metadata.New(&ec2metadata.Config{})
-	region, err := metadata.Region()
-	if err != nil {
-		println(err.Error())
-		os.Exit(1)
+	if region == "" {
+		metadata := ec2metadata.New(&ec2metadata.Config{})
+		r, err := metadata.Region()
+		if err != nil {
+			println(err.Error())
+			os.Exit(1)
+		}
+		region = r
 	}
 
 	config := &aws.Config{
@@ -89,20 +90,24 @@ func main() {
 				} else {
 					ip = instance.PrivateIpAddress
 				}
-				output.WriteString(fmt.Sprintf("%s://%s=%s:%s", protocol, *instance.InstanceId, *ip, port))
+				output.WriteString(fmt.Sprintf("%s=%s://%s:%s", *instance.InstanceId, protocol, *ip, port))
 			}
 		}
 
-		file, err := os.Create(outputFile)
-		if err != nil {
-			println(err.Error())
-			os.Exit(1)
-		}
-		output.WriteTo(file)
-		err = file.Close()
-		if err != nil {
-			println(err.Error())
-			os.Exit(1)
+		if outputFile == "" {
+			output.WriteTo(os.Stdout)
+		} else {
+			file, err := os.Create(outputFile)
+			if err != nil {
+				println(err.Error())
+				os.Exit(1)
+			}
+			output.WriteTo(file)
+			err = file.Close()
+			if err != nil {
+				println(err.Error())
+				os.Exit(1)
+			}
 		}
 		os.Exit(0)
 	}
