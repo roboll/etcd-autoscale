@@ -10,11 +10,14 @@ VERSION   := $(shell git describe --tags)
 
 GOOS     := linux
 GOARCH   := amd64
-BINARY   := $(REPO)-$(GOOS)-$(GOARCH)-$(VERSION)
+BINARY   := $(REPO)-$(GOOS)-$(GOARCH)
 
 all: build
-build: target/$(BINARY)
-release: $(PRE_RELEASE) gh-release-$(BINARY)
+build: target/$(BINARY) docker-build
+release: clean $(PRE_RELEASE) gh-release-$(BINARY) docker-release
+
+.PHONY: clean
+clean: ; rm -rf target
 
 ###############################################################################
 # pre-release - test and validation steps
@@ -44,6 +47,17 @@ target/%.tar.gz: target %
 	@tar czf target/$*.tar.gz -C $* .
 
 ###############################################################################
+# docker releases
+###############################################################################
+.PHONY: docker-build docker-release
+
+docker-build: target/$(BINARY)
+	docker build -t $(IMAGE_TAG) .
+
+docker-release: target/$(BINARY) docker-build
+	docker push $(IMAGE_TAG)
+
+###############################################################################
 # github-release - upload a binary release to github releases
 #
 # requirements:
@@ -54,12 +68,12 @@ API    = https://api.github.com/repos/$(OWNER)/$(REPO)
 UPLOAD = https://uploads.github.com/repos/$(OWNER)/$(REPO)
 
 .PHONY: create-gh-release gh-release gh-token
-create-gh-release: tag clean gh-token
+create-gh-release: tag clean-repo gh-token
 	$(info Creating Github Release)
 	@curl -s -XPOST -H "Authorization: token $(GITHUB_TOKEN)" \
 		$(API)/releases -d '{ "tag_name": "$(VERSION)" }' > /dev/null
 
-gh-release-%: tag clean gh-token target/% create-gh-release
+gh-release-%: tag clean-repo gh-token target/% create-gh-release
 	$(info Uploading Release Artifact $* to Github)
 	@curl -s \
 		-H "Authorization: token $(GITHUB_TOKEN)" \
@@ -81,6 +95,6 @@ endif
 ###############################################################################
 .PHONY: tag clean
 tag:  ; @git describe --tags --exact-match HEAD > /dev/null
-clean:
+clean-repo:
 	@git diff --exit-code > /dev/null
 	@git diff --cached --exit-code > /dev/null
