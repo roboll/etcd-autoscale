@@ -17,3 +17,7 @@ Grab a github download, or build it yourself. There are some options.
 The output file should contain a `source`-able or `EnvironmentFile`-able list of etcd members.
 
     ETCD_INITIAL_CLUSTER=i-xxxxxxxx=10.0.0.1,i-yyyyyyyy=10.0.0.2,i-zzzzzzzz=10.0.0.3
+
+## Docker
+
+`roboll/etcd-autoscale`
